@@ -1,0 +1,651 @@
+C51 COMPILER V7.06   MODBUS                                                                09/06/2016 13:35:55 PAGE 1   
+
+
+C51 COMPILER V7.06, COMPILATION OF MODULE MODBUS
+OBJECT MODULE PLACED IN modbus.OBJ
+COMPILER INVOKED BY: E:\Keil2\C51\BIN\C51.EXE modbus.c BROWSE NOAREGS DEBUG OBJECTEXTEND
+
+stmt level    source
+
+   1          #include "main.h"
+   2          
+   3          //字地址 0 - 255 (只取低8位)
+   4          //位地址 0 - 255 (只取低8位)
+   5          
+   6          /* CRC 高位字节值表 */ 
+   7          const uint8 code auchCRCHi[] = { 
+   8          0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 0x01, 0xC0, 
+   9          0x80, 0x41, 0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 
+  10          0x00, 0xC1, 0x81, 0x40, 0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 
+  11          0x80, 0x41, 0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81, 0x40, 
+  12          0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 
+  13          0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 0x01, 0xC0, 0x80, 0x41, 
+  14          0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 
+  15          0x81, 0x40, 0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 
+  16          0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 0x01, 0xC0, 
+  17          0x80, 0x41, 0x00, 0xC1, 0x81, 0x40, 0x00, 0xC1, 0x81, 0x40, 
+  18          0x01, 0xC0, 0x80, 0x41, 0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 
+  19          0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81, 0x40, 
+  20          0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 0x01, 0xC0, 
+  21          0x80, 0x41, 0x00, 0xC1, 0x81, 0x40, 0x00, 0xC1, 0x81, 0x40, 
+  22          0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 
+  23          0x80, 0x41, 0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81, 0x40, 
+  24          0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 0x01, 0xC0, 
+  25          0x80, 0x41, 0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 
+  26          0x00, 0xC1, 0x81, 0x40, 0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 
+  27          0x80, 0x41, 0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 
+  28          0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 
+  29          0x80, 0x41, 0x00, 0xC1, 0x81, 0x40, 0x00, 0xC1, 0x81, 0x40, 
+  30          0x01, 0xC0, 0x80, 0x41, 0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 
+  31          0x81, 0x40, 0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 
+  32          0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 0x01, 0xC0, 
+  33          0x80, 0x41, 0x00, 0xC1, 0x81, 0x40 
+  34          } ; 
+  35          /* CRC低位字节值表*/ 
+  36          const uint8 code auchCRCLo[] = { 
+  37          0x00, 0xC0, 0xC1, 0x01, 0xC3, 0x03, 0x02, 0xC2, 0xC6, 0x06, 
+  38          0x07, 0xC7, 0x05, 0xC5, 0xC4, 0x04, 0xCC, 0x0C, 0x0D, 0xCD, 
+  39          0x0F, 0xCF, 0xCE, 0x0E, 0x0A, 0xCA, 0xCB, 0x0B, 0xC9, 0x09, 
+  40          0x08, 0xC8, 0xD8, 0x18, 0x19, 0xD9, 0x1B, 0xDB, 0xDA, 0x1A, 
+  41          0x1E, 0xDE, 0xDF, 0x1F, 0xDD, 0x1D, 0x1C, 0xDC, 0x14, 0xD4, 
+  42          0xD5, 0x15, 0xD7, 0x17, 0x16, 0xD6, 0xD2, 0x12, 0x13, 0xD3, 
+  43          0x11, 0xD1, 0xD0, 0x10, 0xF0, 0x30, 0x31, 0xF1, 0x33, 0xF3, 
+  44          0xF2, 0x32, 0x36, 0xF6, 0xF7, 0x37, 0xF5, 0x35, 0x34, 0xF4, 
+  45          0x3C, 0xFC, 0xFD, 0x3D, 0xFF, 0x3F, 0x3E, 0xFE, 0xFA, 0x3A, 
+  46          0x3B, 0xFB, 0x39, 0xF9, 0xF8, 0x38, 0x28, 0xE8, 0xE9, 0x29, 
+  47          0xEB, 0x2B, 0x2A, 0xEA, 0xEE, 0x2E, 0x2F, 0xEF, 0x2D, 0xED, 
+  48          0xEC, 0x2C, 0xE4, 0x24, 0x25, 0xE5, 0x27, 0xE7, 0xE6, 0x26, 
+  49          0x22, 0xE2, 0xE3, 0x23, 0xE1, 0x21, 0x20, 0xE0, 0xA0, 0x60, 
+  50          0x61, 0xA1, 0x63, 0xA3, 0xA2, 0x62, 0x66, 0xA6, 0xA7, 0x67, 
+  51          0xA5, 0x65, 0x64, 0xA4, 0x6C, 0xAC, 0xAD, 0x6D, 0xAF, 0x6F, 
+  52          0x6E, 0xAE, 0xAA, 0x6A, 0x6B, 0xAB, 0x69, 0xA9, 0xA8, 0x68, 
+  53          0x78, 0xB8, 0xB9, 0x79, 0xBB, 0x7B, 0x7A, 0xBA, 0xBE, 0x7E, 
+  54          0x7F, 0xBF, 0x7D, 0xBD, 0xBC, 0x7C, 0xB4, 0x74, 0x75, 0xB5, 
+  55          0x77, 0xB7, 0xB6, 0x76, 0x72, 0xB2, 0xB3, 0x73, 0xB1, 0x71, 
+C51 COMPILER V7.06   MODBUS                                                                09/06/2016 13:35:55 PAGE 2   
+
+  56          0x70, 0xB0, 0x50, 0x90, 0x91, 0x51, 0x93, 0x53, 0x52, 0x92, 
+  57          0x96, 0x56, 0x57, 0x97, 0x55, 0x95, 0x94, 0x54, 0x9C, 0x5C, 
+  58          0x5D, 0x9D, 0x5F, 0x9F, 0x9E, 0x5E, 0x5A, 0x9A, 0x9B, 0x5B, 
+  59          0x99, 0x59, 0x58, 0x98, 0x88, 0x48, 0x49, 0x89, 0x4B, 0x8B, 
+  60          0x8A, 0x4A, 0x4E, 0x8E, 0x8F, 0x4F, 0x8D, 0x4D, 0x4C, 0x8C, 
+  61          0x44, 0x84, 0x85, 0x45, 0x87, 0x47, 0x46, 0x86, 0x82, 0x42, 
+  62          0x43, 0x83, 0x41, 0x81, 0x80, 0x40 
+  63          } ;
+  64          
+  65          uint8   testCoil;               //用于测试 位地址1
+  66          uint16  testRegister;   //用于测试 字址址16
+  67          
+  68          uint8   localAddr = 1;  //单片机控制板的地址
+  69          uint8   sendCount;              //发送字节个数
+  70          uint8   receCount;          //接收到的字节个数
+  71          uint8   sendPosi;           //发送位置
+  72          uint8   iRecvFlag;
+  73          
+  74          uint16 crc16(uint8 *puchMsg, uint16 usDataLen) 
+  75          { 
+  76   1              uint8 uchCRCHi = 0xFF ; /* 高CRC字节初始化 */ 
+  77   1              uint8 uchCRCLo = 0xFF ; /* 低CRC 字节初始化 */ 
+  78   1              uint32 uIndex ; /* CRC循环中的索引 */ 
+  79   1              while (usDataLen--) /* 传输消息缓冲区 */ 
+  80   1              { 
+  81   2                      uIndex = uchCRCHi ^ *puchMsg++ ; /* 计算CRC */ 
+  82   2                      uchCRCHi = uchCRCLo ^ auchCRCHi[uIndex] ; 
+  83   2                      uchCRCLo = auchCRCLo[uIndex] ; 
+  84   2              } 
+  85   1              return (uchCRCHi << 8 | uchCRCLo) ; 
+  86   1      }//uint16 crc16(uint8 *puchMsg, uint16 usDataLen)
+  87          
+  88          
+  89          void SetSendFlag(uint8 value)
+  90          {
+  91   1              uint16 i ;
+  92   1              if(value)
+  93   1                      b485Send = 0;
+  94   1              else
+  95   1                      b485Send = 1;   
+  96   1              i = 5000;
+  97   1              while(i--);
+  98   1      }
+  99          
+ 100          //开始发送
+ 101          void beginSend(void)
+ 102          {       
+ 103   1      
+ 104   1              //设为发送
+ 105   1              SetSendFlag(1);
+ 106   1              
+ 107   1              sendPosi = 0;
+ 108   1              if(sendCount > 1)
+ 109   1                      sendCount--;
+ 110   1              ACC = sendBuf[0];
+ 111   1              TB8 = P;
+ 112   1              SBUF = sendBuf[0];
+ 113   1      
+ 114   1      }//void beginSend(void)
+ 115          
+ 116                   /*
+ 117          //读线圈状态
+C51 COMPILER V7.06   MODBUS                                                                09/06/2016 13:35:55 PAGE 3   
+
+ 118          void readCoil(void)
+ 119          {
+ 120                  uint8 addr;
+ 121                  uint8 tempAddr;
+ 122                  uint8 byteCount;
+ 123                  uint8 bitCount;
+ 124                  uint16 crcData;
+ 125                  uint8 position;
+ 126                  uint8 i,k;
+ 127                  uint8  result;
+ 128                  uint16 tempData;
+ 129                  uint8  exit = 0;
+ 130                  
+ 131                  //addr = (receBuf[2]<<8) + receBuf[3];  
+ 132                  //tempAddr = addr & 0xfff;
+ 133                  addr = receBuf[3];
+ 134                  tempAddr = addr;
+ 135          
+ 136                  //bitCount = (receBuf[4]<<8) + receBuf[5];      //读取的位个数
+ 137                  bitCount = receBuf[5];
+ 138          
+ 139                  byteCount = bitCount / 8;                                       //字节个数
+ 140                  if(bitCount%8 != 0)
+ 141                          byteCount++;
+ 142                                                                                  
+ 143                  for(k=0;k<byteCount;k++)
+ 144                  {//字节位置
+ 145                          position = k + 3;
+ 146                          sendBuf[position] = 0;
+ 147                          for(i=0;i<8;i++)
+ 148                          {
+ 149                                  getCoilVal(tempAddr,&tempData);
+ 150                                  
+ 151                                  sendBuf[position] |= tempData << i;
+ 152                                  tempAddr++;
+ 153                                  if(tempAddr >= addr+bitCount)
+ 154                                  {       //读完
+ 155                                          exit = 1;
+ 156                                          break;
+ 157                                  }       
+ 158                          }
+ 159                          if(exit == 1)
+ 160                                  break;
+ 161                  }
+ 162                  
+ 163                  sendBuf[0] = localAddr;
+ 164                  sendBuf[1] = 0x01;      
+ 165                  sendBuf[2] = byteCount;
+ 166                  byteCount += 3;
+ 167                  crcData = crc16(sendBuf,byteCount);     
+ 168                  sendBuf[byteCount] = crcData >> 8;
+ 169                  byteCount++;
+ 170                  sendBuf[byteCount] = crcData & 0xff;
+ 171                  sendCount = byteCount + 1;
+ 172                  
+ 173                  beginSend();    
+ 174          }//void readCoil(void) 
+ 175          
+ 176          //读寄存器
+ 177          void readRegisters(void)
+ 178          {
+ 179                  uint8 addr;
+C51 COMPILER V7.06   MODBUS                                                                09/06/2016 13:35:55 PAGE 4   
+
+ 180                  uint8 tempAddr;
+ 181                  uint16 result;
+ 182                  uint16 crcData;
+ 183                  uint8 readCount;
+ 184                  uint8 byteCount;
+ 185                  uint8  finsh;   //1完成  0出错
+ 186                  uint16 i;
+ 187                  uint16 tempData = 0;    
+ 188                  
+ 189                  //addr = (receBuf[2]<<8) + receBuf[3];
+ 190                  //tempAddr = addr & 0xfff;      
+ 191                  addr = receBuf[3];
+ 192                  tempAddr = addr;
+ 193          
+ 194                  //readCount = (receBuf[4]<<8) + receBuf[5];     //要读的个数
+ 195                  readCount = receBuf[5];
+ 196          
+ 197                  byteCount = readCount * 2;
+ 198                  
+ 199                  for(i=0;i<byteCount;i+=2,tempAddr++)
+ 200                  {
+ 201                          getRegisterVal(tempAddr,&tempData);                             
+ 202                          sendBuf[i+3] = tempData >> 8;                                           
+ 203                          sendBuf[i+4] = tempData & 0xff;                 
+ 204                  }
+ 205                  
+ 206                  sendBuf[0] = localAddr;
+ 207                  sendBuf[1] = 3;
+ 208                  sendBuf[2] = byteCount;
+ 209                  byteCount += 3;
+ 210                  crcData = crc16(sendBuf,byteCount);
+ 211                  sendBuf[byteCount] = crcData >> 8;
+ 212                  byteCount++;
+ 213                  sendBuf[byteCount] = crcData & 0xff;
+ 214                  
+ 215                  sendCount = byteCount + 1;
+ 216                  beginSend();
+ 217          }//void readRegisters(void)
+ 218          
+ 219          
+ 220          //强制单个线圈
+ 221          void forceSingleCoil(void)
+ 222          {
+ 223                  uint8 addr;
+ 224                  uint8 tempAddr;
+ 225                  uint16 tempData;
+ 226                  uint8  onOff;
+ 227                  uint8 i;
+ 228                  
+ 229                  //addr = (receBuf[2]<<8) + receBuf[3];  
+ 230                  //tempAddr = addr & 0xfff;
+ 231                  addr = receBuf[3];
+ 232                  tempAddr = addr;
+ 233          
+ 234                  //onOff = (receBuf[4]<<8) + receBuf[5]; 
+ 235                  onOff = receBuf[4];
+ 236                  
+ 237                  //if(onOff == 0xff00)
+ 238                  if(onOff == 0xff)
+ 239                  {       //设为ON
+ 240                          tempData = 1;
+ 241                  } 
+C51 COMPILER V7.06   MODBUS                                                                09/06/2016 13:35:55 PAGE 5   
+
+ 242                  //else if(onOff == 0x0000)
+ 243                  else if(onOff == 0x00)
+ 244                  {       //设为OFF
+ 245                          tempData = 0;
+ 246                  }
+ 247          
+ 248                  setCoilVal(tempAddr,tempData);  
+ 249                  
+ 250                  for(i=0;i<receCount;i++)
+ 251                  {
+ 252                          sendBuf[i] = receBuf[i];
+ 253                  }
+ 254                  sendCount = receCount;
+ 255                  beginSend();    
+ 256          }//void forceSingleCoil(void)
+ 257          
+ 258          
+ 259          //设置多个寄存器
+ 260          void presetMultipleRegisters(void)
+ 261          {
+ 262                  uint8 addr;
+ 263                  uint8 tempAddr;
+ 264                  uint8 byteCount;
+ 265                  uint8 setCount;
+ 266                  uint16 crcData;
+ 267                  uint16 tempData;
+ 268                  uint8  finsh;   //为1时完成 为0时出错
+ 269                  uint8 i;
+ 270                  
+ 271                  //addr = (receBuf[2]<<8) + receBuf[3];
+ 272                  //tempAddr = addr & 0xfff;
+ 273                  addr = receBuf[3];
+ 274                  tempAddr = addr & 0xff;
+ 275          
+ 276                  //setCount = (receBuf[4]<<8) + receBuf[5];
+ 277                  setCount = receBuf[5];
+ 278                  byteCount = receBuf[6]; 
+ 279                  
+ 280                  for(i=0;i<setCount;i++,tempAddr++)
+ 281                  {
+ 282                          tempData = (receBuf[i*2+7]<<8) + receBuf[i*2+8];
+ 283                  
+ 284                          setRegisterVal(tempAddr,tempData);                      
+ 285                  }
+ 286                  
+ 287                  sendBuf[0] = localAddr;
+ 288                  sendBuf[1] = 16;
+ 289                  sendBuf[2] = addr >> 8;
+ 290                  sendBuf[3] = addr & 0xff;
+ 291                  sendBuf[4] = setCount >> 8;
+ 292                  sendBuf[5] = setCount & 0xff;
+ 293                  crcData = crc16(sendBuf,6);
+ 294                  sendBuf[6] = crcData >> 8;
+ 295                  sendBuf[7] = crcData & 0xff;
+ 296                  sendCount = 8;
+ 297                  beginSend();    
+ 298          }//void presetMultipleRegisters(void)
+ 299          
+ 300          
+ 301          
+ 302          //检查uart0数据
+ 303          void checkComm0Modbus(void)
+C51 COMPILER V7.06   MODBUS                                                                09/06/2016 13:35:55 PAGE 6   
+
+ 304          {
+ 305                  uint16 crcData;
+ 306                  uint16 tempData;
+ 307          
+ 308                  if(receCount == 16)
+ 309                  {
+ 310                          
+ 311                  }
+ 312                  
+ 313                  return;
+ 314                  if(receCount > 4)
+ 315                  {
+ 316                          switch(receBuf[1])
+ 317                          {
+ 318                                  case 1://读取线圈状态(读取点 16位以内)
+ 319                                  case 3://读取保持寄存器(一个或多个)
+ 320                                  case 5://强制单个线圈
+ 321                                  case 6://设置单个寄存器
+ 322                                                  if(receCount >= 8)
+ 323                                                  {//接收完成一组数据
+ 324                                                          //应该关闭接收中断
+ 325                                                          
+ 326                                                          if(receBuf[0]==localAddr && checkoutError==0)
+ 327                                                          {
+ 328                                                                  crcData = crc16(receBuf,6);
+ 329                                                                  if(crcData == receBuf[7]+(receBuf[6]<<8))
+ 330                                                                  {//校验正确
+ 331                                                                          if(receBuf[1] == 1)
+ 332                                                                          {//读取线圈状态(读取点 16位以内)
+ 333                                                                                  readCoil();                                                             
+ 334                                                                          }
+ 335                                                                          else if(receBuf[1] == 3)
+ 336                                                                          {//读取保持寄存器(一个或多个)
+ 337                                                                                  readRegisters();
+ 338                                                                          }
+ 339                                                                          else if(receBuf[1] == 5)
+ 340                                                                          {//强制单个线圈
+ 341                                                                                  forceSingleCoil();                                                              
+ 342                                                                          }
+ 343                                                                          else if(receBuf[1] == 6)
+ 344                                                                          {
+ 345                                                                                  //presetSingleRegister();                                                               
+ 346                                                                          }
+ 347          
+ 348                                                                  }
+ 349                                                          }                                               
+ 350                                                          receCount = 0;  
+ 351                                                          checkoutError = 0;
+ 352                                                  }
+ 353                                                  break;
+ 354                                  
+ 355                                  case 15://设置多个线圈
+ 356                                                  tempData = receBuf[6]; 
+ 357                                                  tempData += 9;  //数据个数
+ 358                                                  if(receCount >= tempData)
+ 359                                                  {
+ 360                                                          if(receBuf[0]==localAddr && checkoutError==0)
+ 361                                                          {
+ 362                                                                  crcData = crc16(receBuf,tempData-2);
+ 363                                                                  if(crcData == (receBuf[tempData-2]<<8)+ receBuf[tempData-1])
+ 364                                                                  {
+ 365                                                                          //forceMultipleCoils();                 
+C51 COMPILER V7.06   MODBUS                                                                09/06/2016 13:35:55 PAGE 7   
+
+ 366                                                                  }
+ 367                                                          }       
+ 368                                                          receCount = 0;
+ 369                                                          checkoutError = 0;
+ 370                                                  }
+ 371                                                  break;
+ 372                                  
+ 373                                  case 16://设置多个寄存器
+ 374                                                  tempData = (receBuf[4]<<8) + receBuf[5];
+ 375                                                  tempData = tempData * 2;        //数据个数
+ 376                                                  tempData += 9;
+ 377                                                  if(receCount >= tempData)
+ 378                                                  {
+ 379                                                          if(receBuf[0]==localAddr && checkoutError==0)
+ 380                                                          {
+ 381                                                                  crcData = crc16(receBuf,tempData-2);
+ 382                                                                  if(crcData == (receBuf[tempData-2]<<8)+ receBuf[tempData-1])
+ 383                                                                  {
+ 384                                                                          presetMultipleRegisters();                      
+ 385                                                                  }
+ 386                                                          }       
+ 387                                                          receCount = 0;
+ 388                                                          checkoutError = 0;
+ 389                                                  }
+ 390                                                  break;
+ 391                                                                          
+ 392                                  default:
+ 393                                                  break;                  
+ 394                          }
+ 395                  }
+ 396          }//void checkComm0(void)
+ 397          
+ 398          //取线圈状态 返回0表示成功
+ 399          uint16 getCoilVal(uint16 addr,uint16 *tempData)
+ 400          {
+ 401                  uint16 result = 0;
+ 402                  uint16 tempAddr;
+ 403                  
+ 404                  tempAddr = addr & 0xfff;
+ 405                  //只取低8位地址
+ 406                  switch(tempAddr & 0xff)
+ 407                  {
+ 408                          case 0:
+ 409                                          break;
+ 410                          case 1: 
+ 411                                          *tempData = testCoil;
+ 412                                          break;
+ 413                          case 2:         
+ 414                                          break;          
+ 415                          case 3:
+ 416                                          break;          
+ 417                          case 4:
+ 418                                          break;          
+ 419                          case 5:
+ 420                                          break;
+ 421                          case 6:
+ 422                                          break;                  
+ 423                          case 7:
+ 424                                          break;          
+ 425                          case 8:
+ 426                                          break;          
+ 427                          case 9:
+C51 COMPILER V7.06   MODBUS                                                                09/06/2016 13:35:55 PAGE 8   
+
+ 428                                          break;          
+ 429                          case 10:
+ 430                                          break;
+ 431                          case 11:
+ 432                                          break;
+ 433                          case 12:
+ 434                                          break;
+ 435                          case 13:
+ 436                                          break;
+ 437                          case 14:
+ 438                                          break;
+ 439                          case 15:
+ 440                                          break;
+ 441                          case 16:
+ 442                                          break;                                                                                                          
+ 443                          default:
+ 444                                          break;          
+ 445                  }       
+ 446                  
+ 447                  return result;
+ 448          }//uint16 getCoilVal(uint16 addr,uint16 *data)
+ 449          
+ 450          
+ 451          //设定线圈状态 返回0表示成功
+ 452          uint16 setCoilVal(uint16 addr,uint16 tempData)
+ 453          {
+ 454                  uint16 result = 0;
+ 455                  uint16 tempAddr;
+ 456                  
+ 457                  tempAddr = addr & 0xfff;
+ 458                  
+ 459                          
+ 460                  switch(tempAddr & 0xff)
+ 461                  {
+ 462                          case 0:
+ 463                                          break;
+ 464                          case 1: 
+ 465                                          testCoil = tempData;
+ 466                                          break;
+ 467                          case 2:         
+ 468                                          break;          
+ 469                          case 3:
+ 470                                          break;          
+ 471                          case 4:
+ 472                                          break;          
+ 473                          case 5:
+ 474                                          break;
+ 475                          case 6:
+ 476                                          break;                  
+ 477                          case 7:
+ 478                                          break;          
+ 479                          case 8:
+ 480                                          break;          
+ 481                          case 9:
+ 482                                          break;          
+ 483                          case 10:
+ 484                                          break;
+ 485                          case 11:
+ 486                                          break;
+ 487                          case 12:
+ 488                                          break;
+ 489                          case 13:
+C51 COMPILER V7.06   MODBUS                                                                09/06/2016 13:35:55 PAGE 9   
+
+ 490                                          break;
+ 491                          case 14:
+ 492                                          break;
+ 493                          case 15:
+ 494                                          break;
+ 495                          case 16:
+ 496                                          break;                                                                                                          
+ 497                          default:
+ 498                                          break;          
+ 499                  }       
+ 500          
+ 501          
+ 502                  return result;
+ 503          }//uint16 setCoilVal(uint16 addr,uint16 data)
+ 504          
+ 505          //取寄存器值 返回0表示成功
+ 506          uint16 getRegisterVal(uint16 addr,uint16 *tempData)
+ 507          {
+ 508                  uint16 result = 0;
+ 509                  uint16 tempAddr;
+ 510                  
+ 511                  tempAddr = addr & 0xfff;
+ 512                  
+ 513                  switch(tempAddr & 0xff)
+ 514                  {
+ 515                          case 0:
+ 516                                          break;
+ 517                          case 1: 
+ 518                                          break;
+ 519                          case 2:         
+ 520                                          break;          
+ 521                          case 3:
+ 522                                          break;          
+ 523                          case 4:
+ 524                                          break;          
+ 525                          case 5:
+ 526                                          break;
+ 527                          case 6:
+ 528                                          break;                  
+ 529                          case 7:
+ 530                                          break;          
+ 531                          case 8:
+ 532                                          break;          
+ 533                          case 9:
+ 534                                          break;          
+ 535                          case 10:
+ 536                                          break;
+ 537                          case 11:
+ 538                                          break;
+ 539                          case 12:
+ 540                                          break;
+ 541                          case 13:
+ 542                                          break;
+ 543                          case 14:
+ 544                                          break;
+ 545                          case 15:
+ 546                                          break;
+ 547                          case 16:
+ 548                                          *tempData = testRegister;
+ 549                                          break;                                                                                                          
+ 550                          default:
+ 551                                          break;          
+C51 COMPILER V7.06   MODBUS                                                                09/06/2016 13:35:55 PAGE 10  
+
+ 552                  }
+ 553                  
+ 554                  return result;
+ 555          }//uint16 getRegisterVal(uint16 addr,uint16 &data)
+ 556          
+ 557          //设置寄存器值 返回0表示成功
+ 558          uint16 setRegisterVal(uint16 addr,uint16 tempData)
+ 559          {
+ 560                  uint16 result = 0;
+ 561                  uint16 tempAddr;
+ 562                  
+ 563                  tempAddr = addr & 0xfff;
+ 564                  
+ 565                  switch(tempAddr & 0xff)
+ 566                  {
+ 567                          case 0:
+ 568                                          break;
+ 569                          case 1: 
+ 570                                          break;
+ 571                          case 2:         
+ 572                                          break;          
+ 573                          case 3:
+ 574                                          break;          
+ 575                          case 4:
+ 576                                          break;          
+ 577                          case 5:
+ 578                                          break;
+ 579                          case 6:
+ 580                                          break;                  
+ 581                          case 7:
+ 582                                          break;          
+ 583                          case 8:
+ 584                                          break;          
+ 585                          case 9:
+ 586                                          break;          
+ 587                          case 10:
+ 588                                          break;
+ 589                          case 11:
+ 590                                          break;
+ 591                          case 12:
+ 592                                          break;
+ 593                          case 13:
+ 594                                          break;
+ 595                          case 14:
+ 596                                          break;
+ 597                          case 15:
+ 598                                          break;
+ 599                          case 16:
+ 600                                          testRegister = tempData;
+ 601                                          break;                                                                                                          
+ 602                          default:
+ 603                                          break;          
+ 604                  }
+ 605                  
+ 606                  return result;
+ 607          }//uint8 setRegisterVal(uint16 addr,uint16 data)
+ 608                           */
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    133    ----
+   CONSTANT SIZE    =    512    ----
+C51 COMPILER V7.06   MODBUS                                                                09/06/2016 13:35:55 PAGE 11  
+
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =      8      10
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

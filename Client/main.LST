@@ -1,0 +1,826 @@
+C51 COMPILER V7.06   MAIN                                                                  09/06/2016 13:35:54 PAGE 1   
+
+
+C51 COMPILER V7.06, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN main.OBJ
+COMPILER INVOKED BY: E:\Keil2\C51\BIN\C51.EXE main.c BROWSE NOAREGS DEBUG OBJECTEXTEND
+
+stmt level    source
+
+   1          #include "main.h"
+   2          
+   3          /******************************
+   4          微控电子 www.mcuc.cn
+   5          modbus RTU 的C51程序 
+   6          单片机89S52
+   7          通信波特率 9600 8位数据 1位停止位 偶校验 485通位接口
+   8          单片机控制板地址 localAddr(变量)
+   9          通信可设置数据的地址：
+  10          字地址 0 - 255 (只取16位的低8位)
+  11          位地址 0 - 255 (只取16位的低8位)
+  12          *******************************/
+  13          
+  14          uint32  dwTickCount,dwIntTick;  //时钟
+  15          uint8   idata sendBuf[16],receBuf[16]; //发送接收缓冲区
+  16          uint8   idata checkoutError;    // ==2 偶校验错  
+  17          uint8   idata receTimeOut;              //接收超时
+  18          uint8   idata c10ms;                    //10ms 计时
+  19          bit             b1ms,bt1ms,b10ms,bt10ms,b100ms,bt100ms; //定时标志位
+  20          uint8   idata ledtick;
+  21          
+  22          uint8 nClientID ;
+  23          
+  24          /* 开始  温度传感器代码 */
+  25          typedef union 
+  26          { unsigned int i;
+  27            float f;
+  28           // uint8 arr[4];
+  29          } value;
+  30          
+  31          sbit    SCK  =  P1^0  ;
+  32          sbit    DATA =  P1^1  ;
+  33          
+  34          sbit    SIMSTAT = P1^3;
+  35          
+  36          #define noACK 0
+  37          #define ACK   1
+  38                                      //adr  command  r/w
+  39          #define STATUS_REG_W 0x06   //000   0011    0
+  40          #define STATUS_REG_R 0x07   //000   0011    1
+  41          #define MEASURE_TEMP 0x03   //000   0001    1
+  42          #define MEASURE_HUMI 0x05   //000   0010    1
+  43          #define RESET        0x1e   //000   1111    0
+  44          
+  45          enum {TEMP,HUMI};
+  46          
+  47          
+  48          value humi_val,temp_val;
+  49          float dew_point;
+  50          
+  51          /* 结束  温度传感器代码 */
+  52          
+  53          
+  54          //开始MAX7219 代码
+  55          sbit dis_DIN=P2^0; /*显示串行数据输入端*/ 
+C51 COMPILER V7.06   MAIN                                                                  09/06/2016 13:35:54 PAGE 2   
+
+  56          
+  57          sbit dis_LOAD=P2^1; /*显示数据锁存端*/ 
+  58          
+  59          sbit dis_CLK=P2^2; /*显示时钟输入端*/ 
+  60          
+  61          
+  62          sbit c_1 = P2^3;
+  63          sbit c_2 = P2^4;
+  64          sbit c_3 = P2^5;
+  65          
+  66          
+  67          #define NoOp 0x00 /*空操作*/ 
+  68          
+  69          #define Digit0 0x01 /*数码管1*/ 
+  70          
+  71          #define Digit1 0x02 /*数码管2*/ 
+  72          
+  73          #define Digit2 0x03 /*数码管3*/ 
+  74          
+  75          #define Digit3 0x04 /*数码管4*/ 
+  76          
+  77          #define Digit4 0x05 /*数码管5*/ 
+  78          
+  79          #define Digit5 0x06 /*数码管6*/ 
+  80          
+  81          #define Digit6 0x07 /*数码管7*/ 
+  82          
+  83          #define Digit7 0x08 /*数码管8*/ 
+  84          
+  85          #define DecodeMode 0x09 /*译码模式*/ 
+  86          
+  87          #define Intensity 0x0a /*亮度*/ 
+  88          
+  89          #define ScanLimit 0x0b /*扫描界限*/ 
+  90          
+  91          #define ShutDown 0x0c /*掉电模式*/ 
+  92          
+  93          #define DisplayTest 0x0f /*显示测试*/ 
+  94          
+  95          
+  96          
+  97          #define ShutdownMode 0x00 /*掉电方式工作*/ 
+  98          
+  99          #define NormalOperation 0x01 /*正常操作方式*/ 
+ 100          
+ 101          
+ 102          
+ 103          #define DecodeDigit 0xff /*译码位数设置*/ 
+ 104          
+ 105          
+ 106          
+ 107          #define IntensityGrade 0x0a /*显示亮度级别设置*/ 
+ 108          
+ 109          
+ 110          
+ 111          #define ScanDigit 0x07 /*扫描位数设置*/ 
+ 112          
+ 113          
+ 114          
+ 115          #define TestMode 0x01 /*显示测试方式*/ 
+ 116          
+ 117          #define TextEnd 0x00 /*显示测试结束，正常工作*/ 
+C51 COMPILER V7.06   MAIN                                                                  09/06/2016 13:35:54 PAGE 3   
+
+ 118          
+ 119          
+ 120          
+ 121          unsigned char data DisBuffer[8]={0,0,0,0,0,0,0,0}; /*显示缓存区*/ 
+ 122          
+ 123          //结束MAX7219代码
+ 124          
+ 125          //
+ 126          
+ 127          //#define CLIENT_ADDR 0x1
+ 128          #define ACTION_GET 0x1     //获取状态
+ 129          
+ 130          
+ 131          /*-------------------------------------------------------- 
+ 132          
+ 133          10ms延时子程序 
+ 134          
+ 135          ---------------------------------------------------------*/ 
+ 136          
+ 137          
+ 138          
+ 139          
+ 140          /*------------------------------------------------- 
+ 141          
+ 142          向MAX7219写入字节（8位） 
+ 143          
+ 144          --------------------------------------------------*/ 
+ 145          
+ 146          void SendChar (unsigned char ch) 
+ 147          { 
+ 148   1              unsigned char i,temp; 
+ 149   1              _nop_(); 
+ 150   1      
+ 151   1              for (i=0;i<8;i++) 
+ 152   1              { 
+ 153   2                              dis_CLK=0;
+ 154   2                      temp=ch&0x80; 
+ 155   2                      ch=ch<<1; 
+ 156   2                      if(temp) 
+ 157   2                      { 
+ 158   3                              dis_DIN=1;
+ 159   3                      }
+ 160   2                      else 
+ 161   2                      { 
+ 162   3                              dis_DIN=0;
+ 163   3                      } 
+ 164   2                      dis_CLK=1;
+ 165   2              } 
+ 166   1      
+ 167   1      } 
+ 168          
+ 169          
+ 170          
+ 171          /*------------------------------------------------- 
+ 172          
+ 173          向MAX7219写入字（16位） 
+ 174          
+ 175          -------------------------------------------------*/ 
+ 176          
+ 177          void WriteWord (unsigned char addr,unsigned char num) 
+ 178          { 
+ 179   1              dis_LOAD=0; 
+C51 COMPILER V7.06   MAIN                                                                  09/06/2016 13:35:54 PAGE 4   
+
+ 180   1              _nop_(); 
+ 181   1              SendChar (addr); 
+ 182   1              _nop_(); 
+ 183   1              SendChar (num); 
+ 184   1              _nop_(); 
+ 185   1              dis_LOAD=1; 
+ 186   1      } 
+ 187          
+ 188          /*------------------------------------------------- 
+ 189          
+ 190          MAX7219初始化 
+ 191          
+ 192          -------------------------------------------------*/ 
+ 193          void InitDis (void) 
+ 194          { 
+ 195   1      
+ 196   1        /*    Write_Max7219(SHUT_DOWN, 0x01);   //Normal Operation XXXXXXX1 Shutdown Mode   XXXXXXXX0
+ 197   1       Write_Max7219(DISPLAY_TEST, 0x00);   //Normal Operation XXXXXXX0 Display Test Mode XXXXXXXX1
+ 198   1       Write_Max7219(DECODE_MODE, 0xff);   //Decode Mode Select D7~D0 1 B decode 0 No decode 
+ 199   1       Write_Max7219(SCAN_LIMIT, 0x07);   //SCAN LIMIT 0~7 0xX0~0xX7
+ 200   1       Write_Max7219(INTENSITY, 0x04);   //Set Intensity   0xX0~0xXf   
+ 201   1      
+ 202   1              WriteWord (ShutDown,0x01);
+ 203   1              WriteWord (DisplayTest, 0x00); 
+ 204   1              WriteWord (DecodeMode,0xff); 
+ 205   1              WriteWord (ScanLimit,0x07); 
+ 206   1              WriteWord (Intensity, 0x04);      */
+ 207   1      
+ 208   1              WriteWord (ScanLimit,ScanDigit); /*设置扫描界限*/ 
+ 209   1              WriteWord (DecodeMode,DecodeDigit); /*设置译码模式*/ 
+ 210   1              WriteWord (Intensity,IntensityGrade); /*设置亮度*/ 
+ 211   1              WriteWord (ShutDown,NormalOperation); /*设置电源工作模式*/ 
+ 212   1              WriteWord (Intensity, 0x04); /*设置亮度*/ 
+ 213   1      
+ 214   1      
+ 215   1      } 
+ 216          
+ 217          
+ 218          //----------------------------------------------------------------------------------
+ 219          char s_write_byte(unsigned char value)
+ 220          //----------------------------------------------------------------------------------
+ 221          // writes a byte on the Sensibus and checks the acknowledge 
+ 222          { 
+ 223   1        unsigned char i,error=0;  
+ 224   1        for (i=0x80;i>0;i/=2)             //shift bit for masking
+ 225   1        { if (i & value) DATA=1;          //masking value with i , write to SENSI-BUS
+ 226   2          else DATA=0;                        
+ 227   2          SCK=1;                          //clk for SENSI-BUS
+ 228   2          _nop_();_nop_();_nop_();        //pulswith approx. 5 us     
+ 229   2          SCK=0;
+ 230   2        }
+ 231   1        DATA=1;                           //release DATA-line
+ 232   1        SCK=1;                            //clk #9 for ack 
+ 233   1        error=DATA;                       //check ack (DATA will be pulled down by SHT11)
+ 234   1        SCK=0;        
+ 235   1        return error;                     //error=1 in case of no acknowledge
+ 236   1      }
+ 237          
+ 238          //----------------------------------------------------------------------------------
+ 239          char s_read_byte(unsigned char ack)
+ 240          //----------------------------------------------------------------------------------
+ 241          // reads a byte form the Sensibus and gives an acknowledge in case of "ack=1" 
+C51 COMPILER V7.06   MAIN                                                                  09/06/2016 13:35:54 PAGE 5   
+
+ 242          { 
+ 243   1         unsigned char i,val=0;
+ 244   1        DATA=1;                           //release DATA-line
+ 245   1        for (i=0x80;i>0;i/=2)             //shift bit for masking
+ 246   1        { SCK=1;                          //clk for SENSI-BUS
+ 247   2          if (DATA) val=(val | i);        //read bit  
+ 248   2          SCK=0;                                       
+ 249   2        }
+ 250   1        DATA=!ack;                        //in case of "ack==1" pull down DATA-Line
+ 251   1        SCK=1;                            //clk #9 for ack
+ 252   1        _nop_();_nop_();_nop_();          //pulswith approx. 5 us 
+ 253   1        SCK=0;                                                    
+ 254   1        DATA=1;                           //release DATA-line
+ 255   1        return val;
+ 256   1      }
+ 257          
+ 258          //----------------------------------------------------------------------------------
+ 259          void s_transstart(void)
+ 260          //----------------------------------------------------------------------------------
+ 261          // generates a transmission start 
+ 262          //       _____         ________
+ 263          // DATA:      |_______|
+ 264          //           ___     ___
+ 265          // SCK : ___|   |___|   |______
+ 266          {  
+ 267   1         DATA=1; SCK=0;                   //Initial state
+ 268   1         _nop_();
+ 269   1         SCK=1;
+ 270   1         _nop_();
+ 271   1         DATA=0;
+ 272   1         _nop_();
+ 273   1         SCK=0;  
+ 274   1         _nop_();_nop_();_nop_();
+ 275   1         SCK=1;
+ 276   1         _nop_();
+ 277   1         DATA=1;                 
+ 278   1         _nop_();
+ 279   1         SCK=0;                  
+ 280   1      }
+ 281          
+ 282          //----------------------------------------------------------------------------------
+ 283          void s_connectionreset(void)
+ 284          //----------------------------------------------------------------------------------
+ 285          // communication reset: DATA-line=1 and at least 9 SCK cycles followed by transstart
+ 286          //       _____________________________________________________         ________
+ 287          // DATA:                                                      |_______|
+ 288          //          _    _    _    _    _    _    _    _    _        ___     ___
+ 289          // SCK : __| |__| |__| |__| |__| |__| |__| |__| |__| |______|   |___|   |______
+ 290          {  
+ 291   1        unsigned char i; 
+ 292   1        DATA=1; SCK=0;                    //Initial state
+ 293   1        for(i=0;i<9;i++)                  //9 SCK cycles
+ 294   1        { SCK=1;
+ 295   2          SCK=0;
+ 296   2        }
+ 297   1        s_transstart();                   //transmission start
+ 298   1      }
+ 299          
+ 300          /*
+ 301          //----------------------------------------------------------------------------------
+ 302          char s_softreset(void)
+ 303          //----------------------------------------------------------------------------------
+C51 COMPILER V7.06   MAIN                                                                  09/06/2016 13:35:54 PAGE 6   
+
+ 304          // resets the sensor by a softreset 
+ 305          { 
+ 306            unsigned char error=0;  
+ 307            s_connectionreset();              //reset communication
+ 308            error+=s_write_byte(RESET);       //send RESET-command to sensor
+ 309            return error;                     //error=1 in case of no response form the sensor
+ 310          }       
+ 311          
+ 312          //----------------------------------------------------------------------------------
+ 313          char s_read_statusreg(unsigned char *p_value, unsigned char *p_checksum)
+ 314          //----------------------------------------------------------------------------------
+ 315          // reads the status register with checksum (8-bit)
+ 316          { 
+ 317            unsigned char error=0;
+ 318            s_transstart();                   //transmission start
+ 319            error=s_write_byte(STATUS_REG_R); //send command to sensor
+ 320            *p_value=s_read_byte(ACK);        //read status register (8-bit)
+ 321            *p_checksum=s_read_byte(noACK);   //read checksum (8-bit)  
+ 322            return error;                     //error=1 in case of no response form the sensor
+ 323          }
+ 324          
+ 325          //----------------------------------------------------------------------------------
+ 326          char s_write_statusreg(unsigned char *p_value)
+ 327          //----------------------------------------------------------------------------------
+ 328          // writes the status register with checksum (8-bit)
+ 329          { 
+ 330            unsigned char error=0;
+ 331            s_transstart();                   //transmission start
+ 332            error+=s_write_byte(STATUS_REG_W);//send command to sensor
+ 333            error+=s_write_byte(*p_value);    //send value of status register
+ 334            return error;                     //error>=1 in case of no response form the sensor
+ 335          }        */
+ 336                                                                     
+ 337          //----------------------------------------------------------------------------------
+ 338          char s_measure(unsigned char *p_value, unsigned char *p_checksum, unsigned char mode)
+ 339          //----------------------------------------------------------------------------------
+ 340          // makes a measurement (humidity/temperature) with checksum
+ 341          { 
+ 342   1        unsigned error=0;
+ 343   1        unsigned int i;
+ 344   1      
+ 345   1        s_transstart();                   //transmission start
+ 346   1        switch(mode){                     //send command to sensor
+ 347   2          case TEMP   : error+=s_write_byte(MEASURE_TEMP); break;
+ 348   2          case HUMI   : error+=s_write_byte(MEASURE_HUMI); break;
+ 349   2          default     : break;         
+ 350   2        }
+ 351   1        for (i=0;i<65535;i++) if(DATA==0) break; //wait until sensor has finished the measurement
+ 352   1        if(DATA) error+=1;                // or timeout (~2 sec.) is reached
+ 353   1        *(p_value)  =s_read_byte(ACK);    //read the first byte (MSB)
+ 354   1        *(p_value+1)=s_read_byte(ACK);    //read the second byte (LSB)
+ 355   1        *p_checksum =s_read_byte(noACK);  //read checksum
+ 356   1        return error;
+ 357   1      }
+ 358          
+ 359          /*
+ 360          //----------------------------------------------------------------------------------
+ 361          void init_uart()
+ 362          //----------------------------------------------------------------------------------
+ 363          //9600 bps @ 11.059 MHz 
+ 364          {SCON  = 0x52;    
+ 365           TMOD  = 0x20;    
+C51 COMPILER V7.06   MAIN                                                                  09/06/2016 13:35:54 PAGE 7   
+
+ 366           TCON  = 0x69;    
+ 367           TH1   = 0xfd;    
+ 368          }       */
+ 369          
+ 370          //----------------------------------------------------------------------------------------
+ 371          void calc_sth11(float *p_humidity ,float *p_temperature)
+ 372          //----------------------------------------------------------------------------------------
+ 373          // calculates temperature [癈] and humidity [%RH] 
+ 374          // input :  humi [Ticks] (12 bit) 
+ 375          //          temp [Ticks] (14 bit)
+ 376          // output:  humi [%RH]
+ 377          //          temp [癈]
+ 378          { const float C1=-4.0;              // for 12 Bit
+ 379   1        const float C2=+0.0405;           // for 12 Bit
+ 380   1        const float C3=-0.0000028;        // for 12 Bit
+ 381   1        const float T1=+0.01;             // for 14 Bit @ 5V
+ 382   1        const float T2=+0.00008;           // for 14 Bit @ 5V 
+ 383   1      
+ 384   1        float rh=*p_humidity;             // rh:      Humidity [Ticks] 12 Bit 
+ 385   1        float t=*p_temperature;           // t:       Temperature [Ticks] 14 Bit
+ 386   1        float rh_lin;                     // rh_lin:  Humidity linear
+ 387   1        float rh_true;                    // rh_true: Temperature compensated humidity
+ 388   1        float t_C;                        // t_C   :  Temperature [癈]
+ 389   1      
+ 390   1        t_C=t*0.01 - 40;                  //calc. temperature from ticks to [癈]
+ 391   1        rh_lin=C3*rh*rh + C2*rh + C1;     //calc. humidity from ticks to [%RH]
+ 392   1        rh_true=(t_C-25)*(T1+T2*rh)+rh_lin;   //calc. temperature compensated humidity [%RH]
+ 393   1        if(rh_true>100)rh_true=100;       //cut if the value is outside of
+ 394   1        if(rh_true<0.1)rh_true=0.1;       //the physical possible range
+ 395   1      
+ 396   1        *p_temperature=t_C;               //return temperature [癈]
+ 397   1        *p_humidity=rh_true;              //return humidity[%RH]
+ 398   1      }
+ 399          
+ 400          //--------------------------------------------------------------------
+ 401          float calc_dewpoint(float h,float t)
+ 402          //--------------------------------------------------------------------
+ 403          // calculates dew point
+ 404          // input:   humidity [%RH], temperature [癈]
+ 405          // output:  dew point [癈]
+ 406          { float logEx,dew_point;
+ 407   1        logEx=0.66077+7.5*t/(237.3+t)+(log10(h)-2);
+ 408   1        dew_point = (logEx - 0.66077)*237.3/(0.66077+7.5-logEx);
+ 409   1        return dew_point;
+ 410   1      }
+ 411                                                                                                                          
+ 412                                                                                                                                                          
+ 413          // 串行中断程序
+ 414          void commIntProc() interrupt 4
+ 415          {
+ 416   1              if(TI)
+ 417   1              {
+ 418   2                      TI = 0; 
+ 419   2                      if(sendPosi < sendCount) 
+ 420   2                      {
+ 421   3                              sendPosi++;
+ 422   3                              ACC = sendBuf[sendPosi];
+ 423   3                              TB8 = P;        //加上校验位
+ 424   3                              SBUF = sendBuf[sendPosi];
+ 425   3                              bSendLED = !bSendLED;
+ 426   3                      }
+ 427   2                      else
+C51 COMPILER V7.06   MAIN                                                                  09/06/2016 13:35:54 PAGE 8   
+
+ 428   2                      {
+ 429   3                              SetSendFlag(0);  //发送完后将485置于接收状态
+ 430   3                              receCount = 0;   //清接收地址偏移寄存器
+ 431   3                              checkoutError = 0;
+ 432   3                              bSendLED = 1;
+ 433   3                      }
+ 434   2              }
+ 435   1              else if(RI)
+ 436   1              {
+ 437   2                      RI = 0;
+ 438   2                      receTimeOut = 10;    //通讯超时值
+ 439   2                      receBuf[receCount] = SBUF;
+ 440   2                      ACC = receBuf[receCount];
+ 441   2                      if(P != RB8)
+ 442   2                              checkoutError = 2;      //偶校验出错
+ 443   2                      receCount++;          //接收地址偏移寄存器加1
+ 444   2                      receCount &= 0x0f;    //最多一次只能接收16个字节
+ 445   2              //      bSendLED = !bSendLED;
+ 446   2              //      if(      receCount == 16)
+ 447   2              //               bSendLED = 0;
+ 448   2                      bSendLED = 0;
+ 449   2              }
+ 450   1      
+ 451   1      }   // void CommIntProc()
+ 452          
+ 453          
+ 454          void showled()
+ 455          {
+ 456   1              InitDis (); 
+ 457   1              WriteWord (Digit0,DisBuffer[0]); 
+ 458   1              WriteWord (Digit1,DisBuffer[1] | 0x80); 
+ 459   1              WriteWord (Digit2,DisBuffer[2]); 
+ 460   1              WriteWord (Digit3,DisBuffer[3]); 
+ 461   1              WriteWord (Digit4,DisBuffer[4] | 0x80); 
+ 462   1              WriteWord (Digit5,DisBuffer[5]);
+ 463   1      }
+ 464          //定时器0 1ms 中断
+ 465          void timer0IntProc() interrupt 1
+ 466          {
+ 467   1               
+ 468   1              TL0 = TIMER_LOW; 
+ 469   1          TH0 = TIMER_HIGHT;
+ 470   1          dwIntTick++;
+ 471   1              bt1ms = 1;
+ 472   1          c10ms++;
+ 473   1      //      ledtick ++;
+ 474   1          if(c10ms >= 10) 
+ 475   1          {
+ 476   2              c10ms = 0;      //10ms计时器清零
+ 477   2              bt10ms = 1;
+ 478   2                        showled();
+ 479   2              
+ 480   2         }
+ 481   1      
+ 482   1         if(c10ms %3 == 0 )
+ 483   1         {
+ 484   2                      WDT_CONTR=0x35; 
+ 485   2                      
+ 486   2         }
+ 487   1      
+ 488   1                      
+ 489   1      
+C51 COMPILER V7.06   MAIN                                                                  09/06/2016 13:35:54 PAGE 9   
+
+ 490   1      /*      if(ledtick == 5)
+ 491   1              {       
+ 492   1                      showled();
+ 493   1                      ledtick = 0;
+ 494   1      
+ 495   1              } */
+ 496   1      
+ 497   1      
+ 498   1      
+ 499   1      }   // void Timer0IntProc()
+ 500          
+ 501          //外部中断0
+ 502          void intEx0Proc(void) interrupt 0
+ 503          {
+ 504   1      
+ 505   1      }
+ 506          
+ 507          //计数器1中断
+ 508          void counter1IntProc(void) interrupt 3 using 1
+ 509          {
+ 510   1      
+ 511   1      }
+ 512          
+ 513          
+ 514          //定时处理
+ 515          void timeProc(void)
+ 516          {
+ 517   1              static uint8 c200ms;
+ 518   1              uint16 j;
+ 519   1      
+ 520   1              /* SHT 10 */
+ 521   1      
+ 522   1              unsigned char error,checksum;
+ 523   1              /* */   
+ 524   1      
+ 525   1      
+ 526   1         // bWatchDog = ~ bWatchDog;    //看门狗取反
+ 527   1              b1ms = 0;
+ 528   1              b10ms = 0;
+ 529   1              b100ms = 0;
+ 530   1              
+ 531   1              ET0 = 0;
+ 532   1              dwTickCount = dwIntTick;
+ 533   1              ET0 = 1;
+ 534   1      
+ 535   1              if(bt1ms)
+ 536   1              {
+ 537   2                      bt1ms = 0;
+ 538   2                      b1ms = 1;
+ 539   2      
+ 540   2              if(receTimeOut>0)
+ 541   2              {
+ 542   3                  receTimeOut--;
+ 543   3                  if(receTimeOut==0 && receCount>0)   //判断通讯接收是否超时
+ 544   3                  {
+ 545   4                                      SetSendFlag(0);                  //将485置为接收状态
+ 546   4                                  receCount = 0;      //将接收地址偏移寄存器清零
+ 547   4                                      checkoutError = 0;
+ 548   4                  }
+ 549   3              }
+ 550   2              }
+ 551   1              
+C51 COMPILER V7.06   MAIN                                                                  09/06/2016 13:35:54 PAGE 10  
+
+ 552   1              if(bt100ms)
+ 553   1              {
+ 554   2                      bt100ms = 0;
+ 555   2                      b100ms = 1;
+ 556   2              }
+ 557   1          if(bt10ms)      //判断中断10ms标志位是否1
+ 558   1          {
+ 559   2              bt10ms = 0;     //清中断10ms标志位
+ 560   2                      b10ms = 1;
+ 561   2      
+ 562   2              c200ms++;                   //200ms计时器加1
+ 563   2              if(c200ms >= 200)            //判断是否计时到2000ms
+ 564   2              {
+ 565   3                              bRunLED =!bRunLED;
+ 566   3                  c200ms = 0;             //清200ms计时器
+ 567   3                              
+ 568   3                              humi_val.i = 0;
+ 569   3                              temp_val.i = 0;
+ 570   3      
+ 571   3                      //      showled();
+ 572   3      
+ 573   3                              //读取温度及湿度传感器
+ 574   3                               error=0;
+ 575   3                          error+=s_measure((unsigned char*) &humi_val.i,&checksum,HUMI);  //measure humidity
+ 576   3                              //      showled();
+ 577   3                          error+=s_measure((unsigned char*) &temp_val.i,&checksum,TEMP);  //measure temperature
+ 578   3                      //              showled();
+ 579   3                               if(error!=0)
+ 580   3                              {
+ 581   4                                       s_connectionreset();                 //in case of an error: connection reset
+ 582   4                                      humi_val.f = 999.9;
+ 583   4                                      temp_val.f = 999.9;
+ 584   4                              
+ 585   4                              }
+ 586   3                          else
+ 587   3                          {
+ 588   4                                       humi_val.f=(float)humi_val.i;                   //converts integer to float
+ 589   4                               temp_val.f=(float)temp_val.i;                   //converts integer to float
+ 590   4                              calc_sth11(&humi_val.f,&temp_val.f);            //calculate humidity, temperature
+ 591   4                              //              showled();
+ 592   4                              dew_point=calc_dewpoint(humi_val.f,temp_val.f); //calculate dew point
+ 593   4                          }
+ 594   3      
+ 595   3                      j =  (uint16)( temp_val.f*10);
+ 596   3                      DisBuffer[0] = (uint8)( j%1000/100); 
+ 597   3                      DisBuffer[1] = (uint8)( j%100/10); 
+ 598   3                      DisBuffer[2] =(uint8)( j%10); 
+ 599   3                      
+ 600   3                      j =  (uint16) (humi_val.f*10);
+ 601   3                      DisBuffer[3] =(uint8)( j%1000/100); 
+ 602   3                      DisBuffer[4] =(uint8)( j%100/10); 
+ 603   3                      DisBuffer[5] =(uint8)( j%10);
+ 604   3      
+ 605   3                      showled();
+ 606   3                              
+ 607   3              }
+ 608   2          }
+ 609   1      }   // void TimerProc(void)
+ 610          
+ 611          //初始化串口
+ 612          void initUart(void)
+ 613          {
+C51 COMPILER V7.06   MAIN                                                                  09/06/2016 13:35:54 PAGE 11  
+
+ 614   1              //T2 用于波特率 9600
+ 615   1              T2CON = 0x30;
+ 616   1              RCAP2H = 0xff;
+ 617   1              RCAP2L = 0xb8;
+ 618   1              TR2 = 1;
+ 619   1      
+ 620   1              //偶校验                                                
+ 621   1              SCON = 0xd0;
+ 622   1          PCON = 0;
+ 623   1          ES = 1;
+ 624   1      }//void initUart(void)
+ 625          
+ 626          //初始化中断
+ 627          void initInt(void)
+ 628          {
+ 629   1              TMOD = 0x51;
+ 630   1              TH0 = TIMER_HIGHT;
+ 631   1              TL0 = TIMER_LOW;
+ 632   1              TR0 = 1;        
+ 633   1          ET0 = 1;
+ 634   1              TH1 = 0;                        //9600
+ 635   1          TL1 = 0;
+ 636   1              TR1 = 0;                        //定时器1用于计数定时器2用于波特
+ 637   1              ET1 = 1;
+ 638   1              //PT1 = 1;
+ 639   1      
+ 640   1              IT0 = 1;        
+ 641   1          IT1 = 1;
+ 642   1              EX0 = 0;        
+ 643   1              PX0 = 1;
+ 644   1          EX1 = 0;
+ 645   1      
+ 646   1              initUart();
+ 647   1      
+ 648   1              EA = 1;         
+ 649   1      }   // void initInt(void)
+ 650          
+ 651          //初始化
+ 652          void initProg(void)
+ 653          {       
+ 654   1              initInt();
+ 655   1      
+ 656   1              SetSendFlag(0);
+ 657   1      
+ 658   1               s_connectionreset();
+ 659   1      }
+ 660          
+ 661          
+ 662          void main(void)
+ 663          {
+ 664   1               uint8 i;
+ 665   1               uint16 j;
+ 666   1      
+ 667   1              initProg();
+ 668   1      
+ 669   1              //7219
+ 670   1              InitDis (); 
+ 671   1      //      WriteWord (DisplayTest,TestMode); 
+ 672   1      //      delayX10ms(0x64); 
+ 673   1      //      WriteWord (DisplayTest,TextEnd); 
+ 674   1      
+ 675   1              //喂狗
+C51 COMPILER V7.06   MAIN                                                                  09/06/2016 13:35:54 PAGE 12  
+
+ 676   1              WDT_CONTR=0x35; 
+ 677   1      
+ 678   1      
+ 679   1              c_1 = 0;
+ 680   1              c_2 = 0;
+ 681   1              c_3 = 0;
+ 682   1              
+ 683   1          //7219
+ 684   1      
+ 685   1              bRunLED  = 0;
+ 686   1              SIMSTAT = 0;
+ 687   1              for(  i = 0;i<16;i++)
+ 688   1              {
+ 689   2                      sendBuf[i]= 0;  
+ 690   2              }
+ 691   1              receCount = 0;
+ 692   1              bSendLED = 1;
+ 693   1      
+ 694   1              humi_val.f = 0;
+ 695   1              temp_val.f = 0;
+ 696   1      
+ 697   1              SetSendFlag(0);
+ 698   1      
+ 699   1      
+ 700   1               ledtick = 0;
+ 701   1      
+ 702   1      
+ 703   1      //       nClientID =   (c_1==1)?1:0 +   (c_2 == 1)?2:0  + (c_3==1)?4:0 + 1;
+ 704   1      
+ 705   1      
+ 706   1              nClientID = 40;
+ 707   1      
+ 708   1              while(1)
+ 709   1              {
+ 710   2              
+ 711   2      
+ 712   2                      timeProc();
+ 713   2      
+ 714   2                      
+ 715   2                      if(      receCount == 2)
+ 716   2                      {
+ 717   3                              if(     receBuf[0] ==      nClientID && checkoutError == 0)
+ 718   3                              {
+ 719   4                                      switch(  receBuf[1])
+ 720   4                                      {
+ 721   5                                              case ACTION_GET:
+ 722   5                                                       {
+ 723   6                                                                      for(  i = 0;i<16;i++)
+ 724   6                                                                      {
+ 725   7                                                                              sendBuf[i]= 0;  
+ 726   7                                                                      }
+ 727   6      
+ 728   6                                                                      sendBuf[0] = 0;
+ 729   6                                                                      sendBuf[1] = nClientID ;
+ 730   6                                                                      sendBuf[2] = ACTION_GET;
+ 731   6                                                                      sendBuf[3] =  SIMSTAT;  //模拟机状态
+ 732   6      
+ 733   6                                                                      j =  (uint16)( humi_val.f*10);
+ 734   6                                                              //      j = 1234;
+ 735   6                                                                  sendBuf[4] =(uint8)( j/1000) ;
+ 736   6                                                                      sendBuf[5] = (uint8)( j%1000/100) ;
+ 737   6                                                                      sendBuf[6] =  (uint8)( j%100/10) ;
+C51 COMPILER V7.06   MAIN                                                                  09/06/2016 13:35:54 PAGE 13  
+
+ 738   6                                                                      sendBuf[7] =  (uint8)( j%10) ;
+ 739   6                                                                      j =  (uint16) (temp_val.f*10);
+ 740   6                                                              //      j = 5678;
+ 741   6                                                                      sendBuf[8] =  (uint8)( j/1000) ;
+ 742   6                                                                      sendBuf[9] =  (uint8)( j%1000/100) ;
+ 743   6                                                                      sendBuf[10] = (uint8)( j%100/10) ;
+ 744   6                                                                      sendBuf[11] =    (uint8)( j%10) ;
+ 745   6      
+ 746   6                                                              
+ 747   6                                                                      sendCount = 12;
+ 748   6                                                                      beginSend();
+ 749   6                                                       }
+ 750   5                                                      break;
+ 751   5                                              default:
+ 752   5                                                      break;
+ 753   5                                      }
+ 754   4                              }
+ 755   3                              receCount = 0;
+ 756   3                              checkoutError = 0;
+ 757   3                      }
+ 758   2      
+ 759   2              //      if(receCount == 15)
+ 760   2              //      {
+ 761   2                      //      bRecvLED =        receBuf[1];
+ 762   2              //              receCount = 0;
+ 763   2              //      } 
+ 764   2              /*      if(receCount == 16)
+ 765   2                      {
+ 766   2                              if(bRecvFlag!=          receBuf[1])
+ 767   2                                      bRecvFlag = receBuf[1];
+ 768   2                              receCount = 0;
+ 769   2                              bSignLED = !bSignLED;
+ 770   2                      }                                */
+ 771   2              /*      if(receCount >0)
+ 772   2                      {
+ 773   2                              bRecvLED = 1    ;
+ 774   2                      }
+ 775   2                      else
+ 776   2                              bRecvLED = 0;   */
+ 777   2              //      checkComm0Modbus();
+ 778   2              }
+ 779   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =   2201    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =     30      70
+   IDATA SIZE       =     36    ----
+   BIT SIZE         =      6    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
